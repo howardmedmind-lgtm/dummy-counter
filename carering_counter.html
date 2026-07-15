@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>傾．聽 CareRing｜成功通話次數</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: "Noto Sans TC","Microsoft JhengHei",sans-serif;
+    background: linear-gradient(135deg,#FFF8F0 0%,#FDEEDD 100%);
+    height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
+  .card {
+    background:#ffffff;
+    border-radius:32px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.08);
+    padding:60px 80px;
+    text-align:center;
+    border:2px solid #F3A65A22;
+    position:relative;
+  }
+  .logo {
+    font-size:22px;
+    color:#1B3A5C;
+    font-weight:700;
+    letter-spacing:2px;
+    margin-bottom:10px;
+  }
+  .logo span { color:#F3A65A; }
+  .subtitle {
+    font-size:16px;
+    color:#8A8A8A;
+    margin-bottom:36px;
+  }
+  .number {
+    font-size:110px;
+    font-weight:800;
+    color:#1B3A5C;
+    letter-spacing:2px;
+    line-height:1;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    transition: all 0.2s ease;
+  }
+  .number .digit {
+    display:inline-block;
+    min-width:0.6em;
+  }
+  .label {
+    margin-top:20px;
+    font-size:24px;
+    color:#F3A65A;
+    font-weight:600;
+  }
+  .heart {
+    color:#F3A65A;
+    margin-right:6px;
+  }
+  .pulse {
+    display:inline-block;
+    width:10px;height:10px;
+    background:#4CAF50;
+    border-radius:50%;
+    margin-right:8px;
+    animation:pulse 1.5s infinite;
+    vertical-align:middle;
+  }
+  @keyframes pulse {
+    0% { box-shadow:0 0 0 0 rgba(76,175,80,0.6);}
+    70% { box-shadow:0 0 0 12px rgba(76,175,80,0);}
+    100% { box-shadow:0 0 0 0 rgba(76,175,80,0);}
+  }
+  .status {
+    margin-top:28px;
+    font-size:14px;
+    color:#AAAAAA;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">傾．聽 <span>CareRing</span></div>
+  <div class="subtitle">AI 語音關懷機器人・即時數據</div>
+  <div class="number" id="counter">10000</div>
+  <div class="label">❤ 成功關懷通話次數</div>
+  <div class="status"><span class="pulse"></span>系統實時運作中</div>
+</div>
+
+<script>
+// ------- 設定 -------
+// 起始時間：今天 00:00 (本地時間)，數字固定由 10000 開始累加
+var startDate = new Date(2026, 6, 15, 0, 0, 0, 0); // 2026年7月15日 00:00 (月份從0開始，6代表7月)
+var startValue = 10000;
+
+// 用簡單可重現的seeded PRNG，令同一分鐘index永遠得出同一個隨機值
+// 這樣無論何時打開網頁，計算出來的總數都會一致，不會因為reload而改變
+function seededRandom(seed) {
+  var x = Math.sin(seed * 999331 + 12345) * 10000;
+  return x - Math.floor(x); // 0~1之間
+}
+
+function getIncrementForMinute(minuteIndex) {
+  var r = seededRandom(minuteIndex);
+  return 1 + Math.floor(r * 8); // 1~8之間隨機整數
+}
+
+function computeTotal() {
+  var now = new Date();
+  var elapsedMs = now - startDate;
+  if (elapsedMs < 0) elapsedMs = 0;
+  var elapsedMinutes = Math.floor(elapsedMs / 60000);
+
+  var total = startValue;
+  for (var i = 0; i < elapsedMinutes; i++) {
+    total += getIncrementForMinute(i);
+  }
+
+  // 加上本分鐘內按秒數的漸進效果（視覺上更順暢，非真實新增）
+  var secondsIntoCurrentMinute = Math.floor((elapsedMs % 60000) / 1000);
+  var currentMinuteIncrement = getIncrementForMinute(elapsedMinutes);
+  var partial = Math.floor((secondsIntoCurrentMinute / 60) * currentMinuteIncrement);
+
+  return total + partial;
+}
+
+var counterEl = document.getElementById('counter');
+var displayedValue = 0;
+
+function formatNumber(n) {
+  return n.toLocaleString('en-US');
+}
+
+function updateCounter() {
+  var target = computeTotal();
+  if (displayedValue < target) {
+    displayedValue += 1;
+    counterEl.textContent = formatNumber(displayedValue);
+  } else if (displayedValue > target) {
+    displayedValue = target;
+    counterEl.textContent = formatNumber(displayedValue);
+  }
+}
+
+// 初始化時直接設定為目標值，不做0開始的動畫
+displayedValue = computeTotal();
+counterEl.textContent = formatNumber(displayedValue);
+
+// 每秒檢查一次，若目標數字增加，就逐格跳動加上去（視覺上有跳動感）
+setInterval(updateCounter, 200);
+</script>
+
+</body>
+</html>
