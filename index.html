@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>傾．聽 CareRing｜成功通話次數</title>
+<title>傾．聽 CarerRing｜即時關懷數據</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
@@ -23,6 +23,7 @@
     text-align:center;
     border:2px solid #F3A65A22;
     position:relative;
+    min-width:560px;
   }
   .logo {
     font-size:22px;
@@ -44,22 +45,19 @@
     letter-spacing:2px;
     line-height:1;
     font-family: 'Segoe UI', Arial, sans-serif;
-    transition: all 0.2s ease;
-  }
-  .number .digit {
-    display:inline-block;
-    min-width:0.6em;
+    transition: opacity 0.4s ease;
+    min-height:130px;
   }
   .label {
     margin-top:20px;
     font-size:24px;
     color:#F3A65A;
     font-weight:600;
+    transition: opacity 0.4s ease;
+    min-height:36px;
   }
-  .heart {
-    color:#F3A65A;
-    margin-right:6px;
-  }
+  .fade-out { opacity:0; }
+  .fade-in { opacity:1; }
   .pulse {
     display:inline-block;
     width:10px;height:10px;
@@ -79,79 +77,167 @@
     font-size:14px;
     color:#AAAAAA;
   }
+  .dots {
+    margin-top:16px;
+    display:flex;
+    justify-content:center;
+    gap:8px;
+  }
+  .dot {
+    width:8px;height:8px;
+    border-radius:50%;
+    background:#EAD9C4;
+    transition:background 0.3s ease;
+  }
+  .dot.active { background:#F3A65A; }
 </style>
 </head>
 <body>
 
 <div class="card">
-  <div class="logo">傾．聽 <span>CareRing</span></div>
+  <div class="logo">傾．聽 <span>CarerRing</span></div>
   <div class="subtitle">AI 語音關懷機器人・即時數據</div>
   <div class="number" id="counter">10000</div>
-  <div class="label">❤ 成功關懷通話次數</div>
+  <div class="label" id="metricLabel">❤ 成功關懷通話次數</div>
+  <div class="dots" id="dots"></div>
   <div class="status"><span class="pulse"></span>系統實時運作中</div>
 </div>
 
 <script>
-// ------- 設定 -------
-// 起始時間：今天 00:00 (本地時間)，數字固定由 10000 開始累加
-var startDate = new Date(2026, 6, 15, 0, 0, 0, 0); // 2026年7月15日 00:00 (月份從0開始，6代表7月)
-var startValue = 10000;
+var startDate = new Date(2026, 6, 15, 0, 0, 0, 0); // 2026年7月15日 00:00
 
-// 用簡單可重現的seeded PRNG，令同一分鐘index永遠得出同一個隨機值
-// 這樣無論何時打開網頁，計算出來的總數都會一致，不會因為reload而改變
 function seededRandom(seed) {
   var x = Math.sin(seed * 999331 + 12345) * 10000;
-  return x - Math.floor(x); // 0~1之間
+  return x - Math.floor(x);
+}
+function seededRandomB(seed) {
+  var x = Math.sin(seed * 543217 + 98765) * 10000;
+  return x - Math.floor(x);
+}
+function seededRandomC(seed) {
+  var x = Math.sin(seed * 271829 + 54321) * 10000;
+  return x - Math.floor(x);
 }
 
-function getIncrementForMinute(minuteIndex) {
-  var r = seededRandom(minuteIndex);
-  return 1 + Math.floor(r * 8); // 1~8之間隨機整數
+// ---- 1. 成功關懷通話次數：起始10000，每分鐘 +1~8 ----
+var callsStart = 10000;
+function callsIncrement(minuteIndex) {
+  return 1 + Math.floor(seededRandom(minuteIndex) * 8); // 1~8
 }
 
-function computeTotal() {
+// ---- 2. 總通話分鐘：每次通話平均 3~6 分鐘，隨每分鐘新增通話數一併累加 ----
+function minutesIncrement(minuteIndex) {
+  var callInc = callsIncrement(minuteIndex);
+  var avgLenPerCallX10 = 30 + Math.floor(seededRandomB(minuteIndex) * 31); // 3.0~6.0分鐘 (x10)
+  return Math.round(callInc * avgLenPerCallX10 / 10);
+}
+
+// ---- 3. 成功提醒吃藥次數：起始為關懷次數起點的4~5倍，每分鐘 +10~20 ----
+var medsMultiplier = 4 + seededRandomC(0); // 4~5之間，固定一個倍數
+var medsStart = Math.round(callsStart * medsMultiplier);
+function medsIncrement(minuteIndex) {
+  return 10 + Math.floor(seededRandomC(minuteIndex + 1) * 11); // 10~20
+}
+
+// ---- 4. 整體滿意度：維持在98%左右，輕微浮動 97~99 ----
+function satisfactionValue(minuteIndex) {
+  var wobble = seededRandomB(minuteIndex + 500);
+  var val = 97 + wobble * 2; // 97.0 ~ 99.0
+  return val.toFixed(1);
+}
+
+function accumulate(incrementFn, startVal, elapsedMinutes, elapsedMs) {
+  var total = startVal;
+  for (var i = 0; i < elapsedMinutes; i++) {
+    total += incrementFn(i);
+  }
+  var secondsIntoCurrentMinute = Math.floor((elapsedMs % 60000) / 1000);
+  var currentInc = incrementFn(elapsedMinutes);
+  var partial = Math.floor((secondsIntoCurrentMinute / 60) * currentInc);
+  return total + partial;
+}
+
+function getElapsed() {
   var now = new Date();
   var elapsedMs = now - startDate;
   if (elapsedMs < 0) elapsedMs = 0;
   var elapsedMinutes = Math.floor(elapsedMs / 60000);
-
-  var total = startValue;
-  for (var i = 0; i < elapsedMinutes; i++) {
-    total += getIncrementForMinute(i);
-  }
-
-  // 加上本分鐘內按秒數的漸進效果（視覺上更順暢，非真實新增）
-  var secondsIntoCurrentMinute = Math.floor((elapsedMs % 60000) / 1000);
-  var currentMinuteIncrement = getIncrementForMinute(elapsedMinutes);
-  var partial = Math.floor((secondsIntoCurrentMinute / 60) * currentMinuteIncrement);
-
-  return total + partial;
+  return { elapsedMs: elapsedMs, elapsedMinutes: elapsedMinutes };
 }
-
-var counterEl = document.getElementById('counter');
-var displayedValue = 0;
 
 function formatNumber(n) {
-  return n.toLocaleString('en-US');
+  return Math.round(n).toLocaleString('en-US');
 }
 
-function updateCounter() {
-  var target = computeTotal();
-  if (displayedValue < target) {
-    displayedValue += 1;
-    counterEl.textContent = formatNumber(displayedValue);
-  } else if (displayedValue > target) {
-    displayedValue = target;
-    counterEl.textContent = formatNumber(displayedValue);
+var metrics = [
+  {
+    label: "❤ 成功關懷通話次數",
+    getValue: function() {
+      var e = getElapsed();
+      return formatNumber(accumulate(callsIncrement, callsStart, e.elapsedMinutes, e.elapsedMs));
+    }
+  },
+  {
+    label: "☎ 總通話分鐘",
+    getValue: function() {
+      var e = getElapsed();
+      return formatNumber(accumulate(minutesIncrement, 30000, e.elapsedMinutes, e.elapsedMs)) + " 分鐘";
+    }
+  },
+  {
+    label: "💊 成功提醒吃藥次數",
+    getValue: function() {
+      var e = getElapsed();
+      return formatNumber(accumulate(medsIncrement, medsStart, e.elapsedMinutes, e.elapsedMs));
+    }
+  },
+  {
+    label: "😊 整體滿意度",
+    getValue: function() {
+      var e = getElapsed();
+      return satisfactionValue(e.elapsedMinutes) + "%";
+    }
   }
+];
+
+var counterEl = document.getElementById('counter');
+var labelEl = document.getElementById('metricLabel');
+var dotsEl = document.getElementById('dots');
+var currentIndex = 0;
+
+metrics.forEach(function(m, idx) {
+  var dot = document.createElement('div');
+  dot.className = 'dot' + (idx === 0 ? ' active' : '');
+  dot.id = 'dot-' + idx;
+  dotsEl.appendChild(dot);
+});
+
+function renderMetric(idx) {
+  counterEl.textContent = metrics[idx].getValue();
+  labelEl.textContent = metrics[idx].label;
+  metrics.forEach(function(m, i) {
+    document.getElementById('dot-' + i).className = 'dot' + (i === idx ? ' active' : '');
+  });
 }
 
-// 初始化時直接設定為目標值，不做0開始的動畫
-displayedValue = computeTotal();
-counterEl.textContent = formatNumber(displayedValue);
+function refreshCurrentValue() {
+  counterEl.textContent = metrics[currentIndex].getValue();
+}
 
-// 每秒檢查一次，若目標數字增加，就逐格跳動加上去（視覺上有跳動感）
-setInterval(updateCounter, 200);
+renderMetric(currentIndex);
+
+setInterval(refreshCurrentValue, 500);
+
+setInterval(function() {
+  counterEl.classList.add('fade-out');
+  labelEl.classList.add('fade-out');
+  setTimeout(function() {
+    currentIndex = (currentIndex + 1) % metrics.length;
+    renderMetric(currentIndex);
+    counterEl.classList.remove('fade-out');
+    labelEl.classList.remove('fade-out');
+  }, 400);
+}, 15000);
 </script>
 
 </body>
