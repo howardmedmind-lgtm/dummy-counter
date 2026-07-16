@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>傾．聽 CarerRing｜即時關懷數據</title>
+<title>傾．聽 CareRing｜即時關懷數據</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
@@ -95,7 +95,7 @@
 <body>
 
 <div class="card">
-  <div class="logo">傾．聽 <span>CarerRing</span></div>
+  <div class="logo">傾．聽 <span>CareRing</span></div>
   <div class="subtitle">AI 語音關懷機器人・即時數據</div>
   <div class="number" id="counter">10000</div>
   <div class="label" id="metricLabel">❤ 成功關懷通話次數</div>
@@ -121,29 +121,30 @@ function seededRandomC(seed) {
 
 // ---- 1. 成功關懷通話次數：起始10000，每分鐘 +1~8 ----
 var callsStart = 10000;
+var CALLS_TO_MEDS_RATIO = 7; // 關懷熱線 : 食藥提醒 = 1 : 7
+var CALL_AVG_MINUTES = 3;    // 關懷熱線平均每次3分鐘
+var MEDS_AVG_MINUTES = 1;    // 食藥提醒平均每次1分鐘
+
 function callsIncrement(minuteIndex) {
   return 1 + Math.floor(seededRandom(minuteIndex) * 8); // 1~8
 }
 
-// ---- 2. 總通話分鐘：每次通話平均 3~6 分鐘，隨每分鐘新增通話數一併累加 ----
+// ---- 2. 成功提醒吃藥次數：與關懷次數比例固定為 1:7 ----
+var medsStart = callsStart * CALLS_TO_MEDS_RATIO;
+function medsIncrement(minuteIndex) {
+  return callsIncrement(minuteIndex) * CALLS_TO_MEDS_RATIO;
+}
+
+// ---- 3. 總通話分鐘：關懷熱線(平均3分鐘/次) + 食藥提醒(平均1分鐘/次) 實際時長總和 ----
 function minutesIncrement(minuteIndex) {
   var callInc = callsIncrement(minuteIndex);
-  var avgLenPerCallX10 = 30 + Math.floor(seededRandomB(minuteIndex) * 31); // 3.0~6.0分鐘 (x10)
-  return Math.round(callInc * avgLenPerCallX10 / 10);
+  var medsInc = medsIncrement(minuteIndex);
+  return callInc * CALL_AVG_MINUTES + medsInc * MEDS_AVG_MINUTES;
 }
 
-// ---- 3. 成功提醒吃藥次數：起始為關懷次數起點的4~5倍，每分鐘 +10~20 ----
-var medsMultiplier = 4 + seededRandomC(0); // 4~5之間，固定一個倍數
-var medsStart = Math.round(callsStart * medsMultiplier);
-function medsIncrement(minuteIndex) {
-  return 10 + Math.floor(seededRandomC(minuteIndex + 1) * 11); // 10~20
-}
-
-// ---- 4. 整體滿意度：維持在98%左右，輕微浮動 97~99 ----
+// ---- 4. 整體滿意度：固定顯示 100% 成功撥出率 ----
 function satisfactionValue(minuteIndex) {
-  var wobble = seededRandomB(minuteIndex + 500);
-  var val = 97 + wobble * 2; // 97.0 ~ 99.0
-  return val.toFixed(1);
+  return "100";
 }
 
 function accumulate(incrementFn, startVal, elapsedMinutes, elapsedMs) {
@@ -181,7 +182,7 @@ var metrics = [
     label: "☎ 總通話分鐘",
     getValue: function() {
       var e = getElapsed();
-      return formatNumber(accumulate(minutesIncrement, 30000, e.elapsedMinutes, e.elapsedMs));
+      return formatNumber(accumulate(minutesIncrement, callsStart * CALL_AVG_MINUTES + medsStart * MEDS_AVG_MINUTES, e.elapsedMinutes, e.elapsedMs));
     }
   },
   {
@@ -192,7 +193,7 @@ var metrics = [
     }
   },
   {
-    label: "😊 整體滿意度",
+    label: "☎️ 成功撥出率",
     getValue: function() {
       var e = getElapsed();
       return satisfactionValue(e.elapsedMinutes) + "%";
