@@ -181,7 +181,7 @@ var metrics = [
     label: "☎ 總通話分鐘",
     getValue: function() {
       var e = getElapsed();
-      return formatNumber(accumulate(minutesIncrement, 30000, e.elapsedMinutes, e.elapsedMs)) + " 分鐘";
+      return formatNumber(accumulate(minutesIncrement, 30000, e.elapsedMinutes, e.elapsedMs));
     }
   },
   {
